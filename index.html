@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LireWiki - File-based Wiki</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f9fafb; }
+        .sidebar-item:hover { background-color: #e5e7eb; transition: 0.2s; }
+        .active { background-color: #3b82f6 !important; color: white; }
+        #content-area { min-height: 70vh; }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-3">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="32" height="32" rx="6" fill="#3B82F6"/>
+                <path d="M10 10V22M10 22H22M10 16H18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <h1 class="text-xl font-bold text-gray-800 tracking-tight">LireWiki</h1>
+        </div>
+
+        <div class="relative w-1/3">
+            <i class="ri-search-line absolute left-3 top-2.5 text-gray-400"></i>
+            <input type="text" id="searchInput" placeholder="Search pages..." 
+                class="w-full pl-10 pr-4 py-2 bg-gray-100 border-none rounded-lg focus:ring-2 focus:ring-blue-400 outline-none text-sm">
+        </div>
+
+        <div class="flex gap-4 text-gray-600 items-center">
+            <button onclick="navigate('Help')" title="Help"><i class="ri-question-line text-xl"></i></button>
+            <button onclick="navigate('Setting')" title="Settings"><i class="ri-settings-3-line text-xl"></i></button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col p-4">
+            <nav class="space-y-1">
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-3">Main</p>
+                <button onclick="navigate('Home')" class="sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-md text-gray-700 active" data-page="Home">
+                    <i class="ri-home-4-line"></i> Home
+                </button>
+                <button onclick="navigate('About')" class="sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-md text-gray-700" data-page="About">
+                    <i class="ri-information-line"></i> About
+                </button>
+                <button onclick="navigate('Special')" class="sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-md text-gray-700" data-page="Special">
+                    <i class="ri-star-line"></i> Special Page
+                </button>
+
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2 px-3">Actions</p>
+                <button class="w-full flex items-center gap-3 px-3 py-1 text-sm text-gray-500 cursor-not-allowed"><i class="ri-history-line"></i> History</button>
+                <button class="w-full flex items-center gap-3 px-3 py-1 text-sm text-gray-500 cursor-not-allowed"><i class="ri-chat-3-line"></i> Discussion</button>
+            </nav>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-8">
+            <div class="max-w-4xl mx-auto bg-white p-10 rounded-xl shadow-sm border border-gray-100">
+                <div class="flex border-b border-gray-200 mb-6 gap-6 text-sm font-medium text-gray-500">
+                    <button class="border-b-2 border-blue-500 text-blue-600 pb-2"><i class="ri-file-text-line"></i> Page</button>
+                    <button class="pb-2 hover:text-gray-700" onclick="alert('Editing is disabled in static mode.')"><i class="ri-edit-line"></i> Edit</button>
+                    <button class="pb-2 hover:text-gray-700"><i class="ri-eye-line"></i> View</button>
+                </div>
+
+                <div id="content-area">
+                    <h2 id="page-title" class="text-3xl font-bold text-gray-900 mb-4">Loading...</h2>
+                    <div id="page-body" class="prose prose-blue text-gray-600 leading-relaxed max-w-none">
+                        Please wait while we check for data...
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> 
+    <script>
+        const contentBody = document.getElementById('page-body');
+        const contentTitle = document.getElementById('page-title');
+
+        const systemPages = {
+            'Home': 'Welcome to LireWiki. Start browsing your data folder.',
+            'About': 'LireWiki is a lightweight, file-based wiki engine.',
+            'Setting': 'Settings can be configured in the config.json file.',
+            'Help': 'Need help? Check our documentation online.',
+            'Special': 'This is a special generated page.'
+        };
+
+        async function navigate(pageName) {
+            // Update Active Class UI
+            document.querySelectorAll('.sidebar-item').forEach(btn => {
+                btn.classList.remove('active');
+                if(btn.getAttribute('data-page') === pageName) btn.classList.add('active');
+            });
+
+            contentTitle.innerText = pageName;
+            contentBody.innerHTML = `<div class="animate-pulse text-blue-500">Checking data/ folder...</div>`;
+
+            const formats = ['md', 'txt', 'json', 'html'];
+            let found = false;
+
+            // Check if data/ folder has the file
+            for (let ext of formats) {
+                const filePath = `data/${pageName.toLowerCase()}.${ext}`;
+                try {
+                    const response = await fetch(filePath);
+                    if (response.ok) {
+                        const data = await response.text();
+                        renderContent(data, ext);
+                        found = true;
+                        break;
+                    }
+                } catch (e) { /* silent fail for missing files */ }
+            }
+
+            if (!found) {
+                // If not in folder, check systemPages
+                if (systemPages[pageName]) {
+                    contentBody.innerHTML = `<p>${systemPages[pageName]}</p>`;
+                } else {
+                    contentBody.innerHTML = `
+                        <div class="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded">
+                            <p class="font-bold">Error 404</p>
+                            <p>The file for <b>${pageName}</b> was not found in the /data folder.</p>
+                        </div>`;
+                }
+            }
+        }
+
+        function renderContent(data, ext) {
+            if (ext === 'md') {
+                contentBody.innerHTML = marked.parse(data);
+            } else if (ext === 'json') {
+                try {
+                    const jsonObj = JSON.parse(data);
+                    contentBody.innerHTML = `<pre class="bg-gray-800 text-green-400 p-4 rounded-lg overflow-x-auto">${JSON.stringify(jsonObj, null, 2)}</pre>`;
+                } catch(e) {
+                    contentBody.innerHTML = `<p class="text-red-500 italic">Invalid JSON format.</p>`;
+                }
+            } else if (ext === 'html') {
+                contentBody.innerHTML = data; // Dynamic HTML rendering
+            } else {
+                contentBody.innerHTML = `<p class="whitespace-pre-wrap">${data}</p>`;
+            }
+        }
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('keyup', (e) => {
+            if (e.key === "Enter") {
+                const val = e.target.value.trim();
+                if(val) {
+                    // Proper capitalization for navigation
+                    const formattedName = val.charAt(0).toUpperCase() + val.slice(1);
+                    navigate(formattedName);
+                    e.target.value = ""; // Clear search
+                }
+            }
+        });
+
+        window.onload = () => navigate('Home');
+    </script>
+</body>
+</html>
