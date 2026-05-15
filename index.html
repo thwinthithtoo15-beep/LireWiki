@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="my">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LireWiki - File-based Wiki</title>
+    <title>LireWiki Pro - Editor</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,6 +12,9 @@
         .sidebar-item:hover { background-color: #e5e7eb; transition: 0.2s; }
         .active { background-color: #3b82f6 !important; color: white; }
         #content-area { min-height: 70vh; }
+        .edit-mode-active { border: 2px solid #3b82f6 !important; }
+        /* Modal Backdrop */
+        #create-modal { background: rgba(0,0,0,0.4); }
     </style>
 </head>
 <body class="flex flex-col h-screen overflow-hidden">
@@ -23,6 +26,7 @@
                 <path d="M10 10V22M10 22H22M10 16H18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
             </svg>
             <h1 class="text-xl font-bold text-gray-800 tracking-tight">LireWiki</h1>
+            <span id="status-badge" class="text-[10px] bg-gray-100 px-2 py-1 rounded text-gray-500 uppercase font-bold">Static</span>
         </div>
 
         <div class="relative w-1/3">
@@ -39,93 +43,124 @@
 
     <div class="flex flex-1 overflow-hidden">
         <aside class="w-64 bg-white border-r border-gray-200 flex flex-col p-4">
-            <nav class="space-y-1">
+            <nav class="space-y-1 overflow-y-auto flex-1">
                 <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-3">Main</p>
-                <button onclick="navigate('Home')" class="sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-md text-gray-700 active" data-page="Home">
-                    <i class="ri-home-4-line"></i> Home
-                </button>
-                <button onclick="navigate('About')" class="sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-md text-gray-700" data-page="About">
-                    <i class="ri-information-line"></i> About
-                </button>
-                <button onclick="navigate('Special')" class="sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-md text-gray-700" data-page="Special">
-                    <i class="ri-star-line"></i> Special Page
-                </button>
-
-                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2 px-3">Actions</p>
-                <button class="w-full flex items-center gap-3 px-3 py-1 text-sm text-gray-500 cursor-not-allowed"><i class="ri-history-line"></i> History</button>
-                <button class="w-full flex items-center gap-3 px-3 py-1 text-sm text-gray-500 cursor-not-allowed"><i class="ri-chat-3-line"></i> Discussion</button>
+                <div id="sidebar-nav">
+                    <button onclick="navigate('Home')" class="sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-md text-gray-700 active" data-page="Home">
+                        <i class="ri-home-4-line"></i> Home
+                    </button>
+                    <button onclick="navigate('About')" class="sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-md text-gray-700" data-page="About">
+                        <i class="ri-information-line"></i> About
+                    </button>
+                    <button onclick="navigate('Special')" class="sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-md text-gray-700" data-page="Special">
+                        <i class="ri-star-line"></i> Special Page
+                    </button>
+                </div>
             </nav>
+            <button onclick="openCreateModal()" class="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 font-semibold transition">
+                <i class="ri-add-box-line"></i> Create New Page
+            </button>
         </aside>
 
         <main class="flex-1 overflow-y-auto p-8">
             <div class="max-w-4xl mx-auto bg-white p-10 rounded-xl shadow-sm border border-gray-100">
                 <div class="flex border-b border-gray-200 mb-6 gap-6 text-sm font-medium text-gray-500">
-                    <button class="border-b-2 border-blue-500 text-blue-600 pb-2"><i class="ri-file-text-line"></i> Page</button>
-                    <button class="pb-2 hover:text-gray-700" onclick="alert('Editing is disabled in static mode.')"><i class="ri-edit-line"></i> Edit</button>
-                    <button class="pb-2 hover:text-gray-700"><i class="ri-eye-line"></i> View</button>
+                    <button id="view-tab" class="border-b-2 border-blue-500 text-blue-600 pb-2"><i class="ri-file-text-line"></i> Page</button>
+                    <button id="edit-tab" class="pb-2 hover:text-gray-700" onclick="enableEditMode()"><i class="ri-edit-line"></i> Edit</button>
+                    <button id="save-btn" class="hidden pb-2 text-green-600 font-bold" onclick="saveToGitHub()"><i class="ri-save-line"></i> Save to GitHub</button>
                 </div>
 
                 <div id="content-area">
-                    <h2 id="page-title" class="text-3xl font-bold text-gray-900 mb-4">Loading...</h2>
+                    <h2 id="page-title" class="text-3xl font-bold text-gray-900 mb-4">Home</h2>
                     <div id="page-body" class="prose prose-blue text-gray-600 leading-relaxed max-w-none">
-                        Please wait while we check for data...
+                        Please wait...
                     </div>
+                    <textarea id="editor" class="hidden w-full h-[500px] p-4 font-mono text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none mt-4"></textarea>
                 </div>
             </div>
         </main>
     </div>
 
+    <div id="create-modal" class="fixed inset-0 hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 border border-gray-200">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Create New Page</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Page Name</label>
+                    <input type="text" id="newPageName" placeholder="e.g., My New Article" class="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">File Format</label>
+                    <select id="newPageExt" class="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+                        <option value="md">Markdown (.md)</option>
+                        <option value="html">HTML (.html)</option>
+                        <option value="txt">Plain Text (.txt)</option>
+                    </select>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closeCreateModal()" class="flex-1 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-semibold">Cancel</button>
+                    <button onclick="processCreatePage()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> 
     <script>
-        const contentBody = document.getElementById('page-body');
-        const contentTitle = document.getElementById('page-title');
-
-        const systemPages = {
-            'Home': 'Welcome to LireWiki. Start browsing your data folder.',
-            'About': 'LireWiki is a lightweight, file-based wiki engine.',
-            'Setting': 'Settings can be configured in the config.json file.',
-            'Help': 'Need help? Check our documentation online.',
-            'Special': 'This is a special generated page.'
+        // --- CONFIGURATION ---
+        const config = {
+            token: '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', // GitHub PAT Token ထည့်ရန်
+            username: 'thwinthithtoo15-beep',   // GitHub Username ထည့်ရန်
+            repo: 'LireWiki',     // Repository နာမည်ထည့်ရန်
+            dataPath: 'data/'           // Folder နာမည်
         };
 
+        const contentBody = document.getElementById('page-body');
+        const contentTitle = document.getElementById('page-title');
+        const editor = document.getElementById('editor');
+        const saveBtn = document.getElementById('save-btn');
+        const editTab = document.getElementById('edit-tab');
+        const createModal = document.getElementById('create-modal');
+
+        let currentSha = null;
+        let currentExt = 'md';
+        let rawContent = '';
+
         async function navigate(pageName) {
-            // Update Active Class UI
             document.querySelectorAll('.sidebar-item').forEach(btn => {
                 btn.classList.remove('active');
                 if(btn.getAttribute('data-page') === pageName) btn.classList.add('active');
             });
 
+            closeEditMode();
             contentTitle.innerText = pageName;
-            contentBody.innerHTML = `<div class="animate-pulse text-blue-500">Checking data/ folder...</div>`;
+            contentBody.innerHTML = `<div class="animate-pulse text-blue-500">Fetching from GitHub...</div>`;
 
-            const formats = ['md', 'txt', 'json', 'html'];
+            const formats = ['md', 'html', 'txt', 'json'];
             let found = false;
 
-            // Check if data/ folder has the file
             for (let ext of formats) {
-                const filePath = `data/${pageName.toLowerCase()}.${ext}`;
+                const url = `https://api.github.com/repos/${config.username}/${config.repo}/contents/${config.dataPath}${pageName.toLowerCase()}.${ext}`;
                 try {
-                    const response = await fetch(filePath);
+                    const response = await fetch(url, {
+                        headers: { 'Authorization': `token ${config.token}` }
+                    });
+
                     if (response.ok) {
-                        const data = await response.text();
-                        renderContent(data, ext);
+                        const data = await response.json();
+                        currentSha = data.sha;
+                        currentExt = ext;
+                        rawContent = decodeURIComponent(escape(atob(data.content)));
+                        renderContent(rawContent, ext);
                         found = true;
                         break;
                     }
-                } catch (e) { /* silent fail for missing files */ }
+                } catch (e) { console.error("Error fetching file:", e); }
             }
 
             if (!found) {
-                // If not in folder, check systemPages
-                if (systemPages[pageName]) {
-                    contentBody.innerHTML = `<p>${systemPages[pageName]}</p>`;
-                } else {
-                    contentBody.innerHTML = `
-                        <div class="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded">
-                            <p class="font-bold">Error 404</p>
-                            <p>The file for <b>${pageName}</b> was not found in the /data folder.</p>
-                        </div>`;
-                }
+                contentBody.innerHTML = `<div class="text-red-500 italic border-l-4 border-red-500 pl-4">Note: File not found in GitHub 'data/' folder.</div>`;
+                currentSha = null;
             }
         }
 
@@ -133,33 +168,128 @@
             if (ext === 'md') {
                 contentBody.innerHTML = marked.parse(data);
             } else if (ext === 'json') {
-                try {
-                    const jsonObj = JSON.parse(data);
-                    contentBody.innerHTML = `<pre class="bg-gray-800 text-green-400 p-4 rounded-lg overflow-x-auto">${JSON.stringify(jsonObj, null, 2)}</pre>`;
-                } catch(e) {
-                    contentBody.innerHTML = `<p class="text-red-500 italic">Invalid JSON format.</p>`;
-                }
-            } else if (ext === 'html') {
-                contentBody.innerHTML = data; // Dynamic HTML rendering
+                contentBody.innerHTML = `<pre class="bg-gray-800 text-green-400 p-4 rounded-lg overflow-x-auto">${data}</pre>`;
             } else {
-                contentBody.innerHTML = `<p class="whitespace-pre-wrap">${data}</p>`;
+                contentBody.innerHTML = `<div class="whitespace-pre-wrap">${data}</div>`;
+            }
+            editor.value = data;
+        }
+
+        function enableEditMode() {
+            contentBody.classList.add('hidden');
+            editor.classList.remove('hidden');
+            saveBtn.classList.remove('hidden');
+            editTab.classList.add('text-blue-600', 'font-bold');
+            document.getElementById('status-badge').innerText = "Editing";
+            document.getElementById('status-badge').classList.replace('bg-gray-100', 'bg-blue-100');
+        }
+
+        function closeEditMode() {
+            contentBody.classList.remove('hidden');
+            editor.classList.add('hidden');
+            saveBtn.classList.add('hidden');
+            editTab.classList.remove('text-blue-600', 'font-bold');
+            document.getElementById('status-badge').innerText = "Static";
+            document.getElementById('status-badge').classList.replace('bg-blue-100', 'bg-gray-100');
+        }
+
+        async function saveToGitHub() {
+            const pageName = contentTitle.innerText.toLowerCase();
+            const newContent = editor.value;
+            const statusBadge = document.getElementById('status-badge');
+            statusBadge.innerText = "Saving...";
+
+            const url = `https://api.github.com/repos/${config.username}/${config.repo}/contents/${config.dataPath}${pageName}.${currentExt}`;
+            const encodedContent = btoa(unescape(encodeURIComponent(newContent)));
+
+            const body = {
+                message: `Update ${pageName}.${currentExt} via LireWiki Pro`,
+                content: encodedContent,
+                sha: currentSha
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${config.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (response.ok) {
+                    alert("Saved to GitHub successfully!");
+                    navigate(contentTitle.innerText);
+                } else {
+                    const err = await response.json();
+                    alert("Error: " + err.message);
+                }
+            } catch (e) {
+                alert("Network error.");
+                console.error(e);
             }
         }
 
-        // Search functionality
-        document.getElementById('searchInput').addEventListener('keyup', (e) => {
-            if (e.key === "Enter") {
-                const val = e.target.value.trim();
-                if(val) {
-                    // Proper capitalization for navigation
-                    const formattedName = val.charAt(0).toUpperCase() + val.slice(1);
-                    navigate(formattedName);
-                    e.target.value = ""; // Clear search
-                }
-            }
-        });
+        // --- NEW PAGE LOGIC ---
+        function openCreateModal() { createModal.classList.remove('hidden'); }
+        function closeCreateModal() { createModal.classList.add('hidden'); }
 
-        window.onload = () => navigate('Home');
+        async function processCreatePage() {
+            const name = document.getElementById('newPageName').value.trim();
+            const ext = document.getElementById('newPageExt').value;
+            if(!name) return alert("Please enter a page name.");
+
+            const fileName = name.toLowerCase().replace(/\s+/g, '-');
+            const url = `https://api.github.com/repos/${config.username}/${config.repo}/contents/${config.dataPath}${fileName}.${ext}`;
+            
+            // Check if file already exists to avoid "sha" error
+            const checkRes = await fetch(url, {
+                headers: { 'Authorization': `token ${config.token}` }
+            });
+
+            if (checkRes.ok) {
+                alert("A page with this name already exists. Please choose a different name.");
+                return;
+            }
+
+            // Initial content
+            const initContent = `# ${name}\n\nStart writing here...`;
+            const encoded = btoa(unescape(encodeURIComponent(initContent)));
+
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${config.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: `Create new page: ${fileName}`,
+                    content: encoded
+                    // Note: 'sha' is intentionally omitted here because we are creating a NEW file
+                })
+            });
+
+            if(response.ok) {
+                closeCreateModal();
+                alert("New page created!");
+                
+                // Add to sidebar dynamically
+                const nav = document.getElementById('sidebar-nav');
+                const btn = document.createElement('button');
+                btn.onclick = () => navigate(name);
+                btn.className = "sidebar-item w-full flex items-center gap-3 px-3 py-2 rounded-md text-gray-700";
+                btn.setAttribute('data-page', name);
+                btn.innerHTML = `<i class="ri-file-add-line"></i> ${name}`;
+                nav.appendChild(btn);
+                
+                navigate(name);
+            } else {
+                const err = await response.json();
+                alert("Creation failed: " + err.message);
+                console.error(err);
+            }
+        }
     </script>
 </body>
 </html>
